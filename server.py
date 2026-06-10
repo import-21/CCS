@@ -1,11 +1,24 @@
 from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 import storage.sqlite as db
-from indexer.python import PythonIndexer
+from indexer.python     import PythonIndexer
+from indexer.javascript import JavaScriptIndexer
+from indexer.java       import JavaIndexer
+from indexer.c          import CIndexer
+from indexer.go         import GoIndexer
+from indexer.web        import HtmlIndexer, CssIndexer
 
 mcp = FastMCP("context-server")
 
-INDEXERS = [PythonIndexer()]
+INDEXERS = [
+    PythonIndexer(),
+    JavaScriptIndexer(),
+    JavaIndexer(),
+    CIndexer(),
+    GoIndexer(),
+    HtmlIndexer(),
+    CssIndexer(),
+]
 EXT_MAP = {ext: idx for idx in INDEXERS for ext in idx.extensions()}
 
 db.init_db()

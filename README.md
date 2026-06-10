@@ -30,6 +30,12 @@ Pythonソースをあらかじめインデックスしておくことで、フ�
 | 言語 | 拡張子 |
 |------|--------|
 | Python | `.py` |
+| JavaScript / TypeScript | `.js` `.ts` `.jsx` `.tsx` `.mjs` `.cjs` |
+| Java | `.java` |
+| C / C++ | `.c` `.cpp` `.cc` `.cxx` `.h` `.hpp` |
+| Go | `.go` |
+| HTML / Vue / Svelte | `.html` `.htm` `.vue` `.svelte` |
+| CSS / SCSS / Sass / Less | `.css` `.scss` `.sass` `.less` |
 
 > `BaseIndexer` を実装することで他の言語を追加できます（後述）。
 
