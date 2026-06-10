@@ -1,0 +1,2 @@
+[console_scripts]
+context-server = server:mcp.run
