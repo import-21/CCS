@@ -1,19 +1,23 @@
 # claude-context-server
 
-AIアシスタントにトークン効率の高いコードナビゲーションを提供する [MCP](https://modelcontextprotocol.io/) サーバーです。  
-Pythonソースをあらかじめインデックスしておくことで、ファイル全体を読まずにシンボル単位で検索・取得できます。
+**Claude Code 専用** のコードナビゲーション MCP サーバーです。  
+ソースをあらかじめインデックスしておくことで、Claude がファイル全体を読まずにシンボル単位で検索・取得できます。
+
+> **対象**: [Claude Code](https://claude.ai/code) (CLI / VS Code / JetBrains 拡張)
 
 ## なぜ必要か
 
-大きなコードベースはAIのコンテキストウィンドウをすぐに圧迫します。  
-このサーバーを使うと：
+Claude Code はファイルを丸ごと読むとコンテキストをすぐに消費します。  
+このサーバーを導入すると Claude が自律的に：
 
-- ファイルを読まずに関数の定義場所を特定できる
+- ファイルを開かずに関数の定義場所を特定できる
 - 必要な関数のソースだけをピンポイントで取得できる
 - 「どこから呼ばれているか」「何を呼んでいるか」をコールグラフで把握できる
 - ファイル全体を読まずにシンボル一覧（アウトライン）を確認できる
 
-## 機能一覧
+CLAUDE.md に使用ルールを書いておくと、Claude が自動的にこのサーバーを活用してトークンを節約します。
+
+## 提供ツール
 
 | ツール | 説明 |
 |--------|------|
@@ -49,26 +53,11 @@ cd claude-context-server
 pip install -e .
 ```
 
-## 導入方法
+## Claude Code への導入
 
-### Claude Code に登録する
+### 1. MCP サーバーを登録する
 
-プロジェクトの `.mcp.json` またはグローバル設定 `~/.claude/claude.json` に追記します。
-
-**スクリプトで直接起動する場合：**
-
-```json
-{
-  "mcpServers": {
-    "context-server": {
-      "command": "python",
-      "args": ["/path/to/claude-context-server/server.py"]
-    }
-  }
-}
-```
-
-**`pip install -e .` 後にインストール済みコマンドを使う場合：**
+プロジェクトの `.mcp.json` に追記します（プロジェクト単位で有効）。
 
 ```json
 {
@@ -80,11 +69,30 @@ pip install -e .
 }
 ```
 
-設定後、Claude Code を再起動すると `/mcp` でサーバーが認識されます。
+グローバルに有効にしたい場合は `~/.claude/claude.json` に同じ設定を追記します。
 
-### 動作確認
+登録後は Claude Code を再起動し、`/mcp` でサーバーが表示されれば完了です。
 
-Claude に次のように依頼すると動作確認できます。
+### 2. CLAUDE.md に使用ルールを書く
+
+プロジェクトルートの `CLAUDE.md` に以下を追記すると、Claude が自動的にこのサーバーを活用します。
+
+```markdown
+## Code Navigation: context-server
+
+- **Always use context-server MCP for code structure and symbol lookup**
+  instead of reading whole files.
+- Workflow:
+  1. `index_directory` でプロジェクトをインデックス（初回 or コード変更後）
+  2. `search_symbol` でシンボルを検索
+  3. `get_function` で必要な関数のソースだけを取得
+  4. `get_callers` / `get_dependencies` で呼び出し関係を確認
+- ファイル全体を `Read` するのはシンボル検索で見つからない場合のみ
+```
+
+### 3. 動作確認
+
+Claude Code のチャットで次のように依頼します。
 
 ```
 context-server の index_directory で /path/to/myproject をインデックスして
@@ -113,8 +121,6 @@ context-server の index_directory で /path/to/myproject をインデックス�
 
 ### ファイル変更後の再インデックス
 
-ファイルを編集したら該当ファイルだけ再インデックスします。
-
 ```
 index_file("/path/to/changed_file.py")
 ```
@@ -123,8 +129,7 @@ index_file("/path/to/changed_file.py")
 
 ### リモートコードの場合
 
-SSH などでリモートサーバーにあるコードを解析したい場合は、  
-一度ローカルにコピーしてからインデックスします。
+SSH などでリモートサーバーにあるコードを解析したい場合は、一度ローカルにコピーしてからインデックスします。
 
 ```bash
 scp -r user@host:/path/to/project /tmp/myproject
@@ -146,21 +151,20 @@ claude-context-server/
 ├── server.py          # FastMCP サーバー + ツール定義
 ├── indexer/
 │   ├── base.py        # BaseIndexer 抽象クラス
-│   └── python.py      # AST ベースの Python インデクサー
+│   ├── python.py      # Python (AST)
+│   ├── javascript.py  # JS / TS / JSX / TSX
+│   ├── java.py        # Java
+│   ├── c.py           # C / C++
+│   ├── go.py          # Go
+│   └── web.py         # HTML / CSS / SCSS
 ├── storage/
 │   └── sqlite.py      # SQLite ストレージ層
 └── pyproject.toml
 ```
 
-**インデックス処理の流れ：**
-1. `PythonIndexer` が Python の `ast` モジュールでファイルをパース
-2. トップレベルの関数・クラス・メソッドを、ソース・シグネチャ・docstring・行番号とともに抽出
-3. AST を走査してコールグラフ（`呼び出し元 → 呼び出し先`）を構築
-4. `symbols` テーブルと `calls` テーブルに保存
-
 ## 新しい言語を追加する
 
-`BaseIndexer` をサブクラス化して2つのメソッドを実装します。
+`BaseIndexer` をサブクラス化して2つのメソッドを実装し、`server.py` の `INDEXERS` に追加します。
 
 ```python
 from indexer.base import BaseIndexer
@@ -172,26 +176,17 @@ class MyLangIndexer(BaseIndexer):
 
     def parse_file(self, path: Path) -> tuple[list[dict], list[tuple[str, str]]]:
         # 戻り値: (symbols, calls)
-        #
-        # symbols: 以下のキーを持つ dict のリスト
-        #   name, kind, file, line_start, line_end,
-        #   signature, docstring, source, parent
-        #
-        # calls: (呼び出し元シンボル名, 呼び出し先シンボル名) のタプルリスト
+        # symbols: name / kind / file / line_start / line_end /
+        #          signature / docstring / source / parent
+        # calls:   (呼び出し元シンボル名, 呼び出し先シンボル名) のリスト
         ...
-```
-
-`server.py` に登録します。
-
-```python
-from indexer.mylang import MyLangIndexer
-INDEXERS = [PythonIndexer(), MyLangIndexer()]
 ```
 
 ## 必要な環境
 
 - Python 3.12 以上
 - `mcp[cli] >= 1.0.0`
+- [Claude Code](https://claude.ai/code)
 
 ## ライセンス
 
